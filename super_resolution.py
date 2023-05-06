@@ -125,12 +125,8 @@ class SuperResolution:
                     print(f'[iteration count : {iteration_count:6d}] model with generated images saved with {model_path_without_extention} h5 and jpg\n')
                 if iteration_count == self.iterations:
                     print('\n\ntrain end successfully')
-                    while True:
-                        generated_images = self.generate_image_grid(grid_size=self.view_grid_size)
-                        cv2.imshow('generated_images', generated_images)
-                        key = cv2.waitKey(0)
-                        if key == 27:
-                            exit(0)
+                    self.show_sr_images()
+                    exit(0)
 
     @staticmethod
     @tf.function
@@ -171,7 +167,7 @@ class SuperResolution:
                 generated_image_grid = np.append(generated_image_grid, grid_row, axis=0)
         return generated_image_grid
 
-    def show_generated_images(self):
+    def show_sr_images(self):
         while True:
             generated_images = self.generate_image_grid(grid_size=self.view_grid_size)
             cv2.imshow('sr_images', generated_images)
