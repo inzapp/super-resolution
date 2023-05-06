@@ -1,0 +1,9 @@
+*.h5
+*.pb
+*.caffemodel
+*.prototxt
+*.swp
+.idea/
+__pycache__/
+checkpoints/
+cscope.*
