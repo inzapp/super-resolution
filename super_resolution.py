@@ -48,6 +48,7 @@ class SuperResolution:
                  view_grid_size=4,
                  d_loss_ignore_threshold=0.1,
                  checkpoint_path='checkpoint',
+                 use_gan=False,
                  training_view=False):
         assert input_shape[2] in [1, 3]
         self.input_shape = input_shape
@@ -58,12 +59,13 @@ class SuperResolution:
         self.save_interval = save_interval
         self.iterations = iterations
         self.view_grid_size = view_grid_size
+        self.use_gan = use_gan
         self.training_view = training_view
         self.d_loss_ignore_threshold = d_loss_ignore_threshold
         self.checkpoint_path = checkpoint_path
         self.live_view_previous_time = time()
 
-        self.model = Model(input_shape=input_shape, output_shape=self.output_shape)
+        self.model = Model(input_shape=input_shape, output_shape=self.output_shape, use_gan=use_gan)
         self.g_model, self.d_model, self.gan = self.model.build()
 
         self.train_image_paths = self.init_image_paths(train_image_path)
@@ -72,7 +74,8 @@ class SuperResolution:
             image_paths=self.train_image_paths,
             input_shape=input_shape,
             output_shape=self.output_shape,
-            batch_size=batch_size)
+            batch_size=batch_size,
+            use_gan=use_gan)
 
     def init_image_paths(self, image_path):
         return glob(f'{image_path}/**/*.jpg', recursive=True)
@@ -89,8 +92,11 @@ class SuperResolution:
 
     def build_loss_str(self, iteration_count, d_loss, g_loss):
         loss_str = f'[iteration_count : {iteration_count:6d}]'
-        loss_str += f' d_loss: {d_loss:>8.4f}'
-        loss_str += f', g_loss: {g_loss:>8.4f}'
+        if self.use_gan:
+            loss_str += f' d_loss: {d_loss:>8.4f}'
+            loss_str += f', g_loss: {g_loss:>8.4f}'
+        else:
+            loss_str += f'loss: {g_loss:>8.4f}'
         return loss_str
 
     def fit(self):
@@ -108,11 +114,15 @@ class SuperResolution:
         while True:
             for dx, dy, gx, gy in self.train_data_generator:
                 g_lr_scheduler.update(g_optimizer, iteration_count)
-                d_lr_scheduler.update(d_optimizer, iteration_count)
-                self.d_model.trainable = True
-                d_loss = compute_gradient_d(self.d_model, d_optimizer, dx, dy, self.d_loss_ignore_threshold)
-                self.d_model.trainable = False
-                g_loss = compute_gradient_g(self.gan, g_optimizer, gx, gy, 0.0)
+                if self.use_gan:
+                    d_lr_scheduler.update(d_optimizer, iteration_count)
+                    self.d_model.trainable = True
+                    d_loss = compute_gradient_d(self.d_model, d_optimizer, dx, dy, self.d_loss_ignore_threshold)
+                    self.d_model.trainable = False
+                    g_loss = compute_gradient_g(self.gan, g_optimizer, gx, gy, 0.0)
+                else:
+                    d_loss = None
+                    g_loss = compute_gradient_g(self.g_model, g_optimizer, gx, gy, 0.0)
                 iteration_count += 1
                 print(self.build_loss_str(iteration_count, d_loss, g_loss))
                 if self.training_view:

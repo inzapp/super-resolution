@@ -29,6 +29,7 @@ class DataGenerator:
                  input_shape,
                  output_shape,
                  batch_size,
+                 use_gan,
                  dtype='float32'):
         self.generator = generator
         self.image_paths = image_paths
@@ -36,6 +37,7 @@ class DataGenerator:
         self.output_shape = output_shape
         self.batch_size = batch_size
         self.half_batch_size = batch_size // 2
+        self.use_gan = use_gan
         self.dtype = dtype
         self.pool = ThreadPoolExecutor(8)
         self.img_index = 0
@@ -45,17 +47,22 @@ class DataGenerator:
         return int(np.floor(len(self.image_paths) / self.batch_size))
 
     def __getitem__(self, index):
-        from super_resolution import SuperResolution
-        real_dx = np.asarray(self.load_images(count=self.half_batch_size, shape=self.output_shape, interpolation='auto', normalize=True)).astype(self.dtype)
-        real_dy = np.ones((self.half_batch_size, 1), dtype=self.dtype)
-        z = np.asarray(self.load_images(count=self.batch_size, shape=self.input_shape, interpolation='random', normalize=True)).astype(self.dtype)
-        fake_dx = np.asarray(SuperResolution.graph_forward(model=self.generator, x=z[:self.half_batch_size])).astype(self.dtype)
-        fake_dy = np.zeros((self.half_batch_size, 1), dtype=self.dtype)
-        dx = np.append(real_dx, fake_dx, axis=0)
-        dy = np.append(real_dy, fake_dy, axis=0)
-        gx = z
-        gy = np.append(real_dy, real_dy, axis=0)
-        return dx, dy, gx, gy
+        if self.use_gan:
+            z = np.asarray(self.load_images(count=self.batch_size, shape=self.input_shape, interpolation='random', normalize=True)).astype(self.dtype)
+            from super_resolution import SuperResolution
+            real_dx = np.asarray(self.load_images(count=self.half_batch_size, shape=self.output_shape, interpolation='auto', normalize=True)).astype(self.dtype)
+            real_dy = np.ones((self.half_batch_size, 1), dtype=self.dtype)
+            fake_dx = np.asarray(SuperResolution.graph_forward(model=self.generator, x=z[:self.half_batch_size])).astype(self.dtype)
+            fake_dy = np.zeros((self.half_batch_size, 1), dtype=self.dtype)
+            dx = np.append(real_dx, fake_dx, axis=0)
+            dy = np.append(real_dy, fake_dy, axis=0)
+            gx = z
+            gy = np.append(real_dy, real_dy, axis=0)
+            return dx, dy, gx, gy
+        else:
+            gy = np.asarray(self.load_images(count=self.batch_size, shape=self.output_shape, interpolation='random', normalize=True)).astype(self.dtype)
+            gx = np.asarray([self.resize(img, (self.input_shape[1], self.input_shape[0]), 'random') for img in gy]).astype(self.dtype)
+            return None, None, gx, gy
 
     def normalize(self, x):
         return np.asarray(x).astype('float32') / 255.0

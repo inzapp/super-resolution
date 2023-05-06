@@ -32,10 +32,11 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
 class Model:
-    def __init__(self, input_shape, output_shape):
+    def __init__(self, input_shape, output_shape, use_gan):
         self.input_shape = input_shape
         self.output_shape = output_shape
         self.target_scale = output_shape[0] / input_shape[0]
+        self.use_gan = use_gan
         self.gan = None
         self.g_model = None
         self.d_model = None
@@ -43,11 +44,12 @@ class Model:
     def build(self):
         assert self.output_shape[0] % 32 == 0 and self.output_shape[1] % 32 == 0
         g_input, g_output = self.build_g(bn=True)
-        d_input, d_output = self.build_d(bn=False)
         self.g_model = tf.keras.models.Model(g_input, g_output)
-        self.d_model = tf.keras.models.Model(d_input, d_output)
-        gan_output = self.d_model(g_output)
-        self.gan = tf.keras.models.Model(g_input, gan_output)
+        if self.use_gan:
+            d_input, d_output = self.build_d(bn=False)
+            self.d_model = tf.keras.models.Model(d_input, d_output)
+            gan_output = self.d_model(g_output)
+            self.gan = tf.keras.models.Model(g_input, gan_output)
         return self.g_model, self.d_model, self.gan
 
     def build_g(self, bn):
@@ -155,6 +157,7 @@ class Model:
 
     def summary(self):
         self.g_model.summary()
-        print()
-        self.gan.summary()
+        if self.use_gan:
+            print()
+            self.gan.summary()
 
