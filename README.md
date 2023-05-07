@@ -2,9 +2,9 @@
 
 Super Resolution refers to a task that uses deep learning to upscale the resolution of an image
 
-Compared to bicubic interpolation, an image interpolation technique known for best performance in image upscaling
+SR is usually compared to bicubic interpolation, an image interpolation technique known for best performance in image upscaling
 
-SR can learn high resolution textures that are not recognized by image interpolations such as bicubic
+SR can learn high resolution textures that are not recognized by classic image interpolations such as bicubic
 
 In some cases, using SR can help save processing time rather than performing bicubic interpolation
 
@@ -36,6 +36,6 @@ The order of the images is HR, LR, Bicubic, SR from the left
 
 <img src="/md/sample.jpg" width="800"><br>
 
-Below are the results learned bu additional adversarial loss(SRGAN)
+Below are the results learned by additional adversarial loss(SRGAN)
 
 <img src="/md/sample_srgan.jpg" width="800"><br>
