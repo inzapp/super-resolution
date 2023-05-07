@@ -5,5 +5,5 @@
 *.swp
 .idea/
 __pycache__/
-checkpoints/
+checkpoint/
 cscope.*
