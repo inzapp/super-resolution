@@ -90,17 +90,25 @@ class DataGenerator:
         return path
 
     def resize(self, img, size, interpolation):
-        assert interpolation in ['auto', 'random']
-        interpolation = None
+        assert interpolation in ['nearest', 'area', 'bicubic', 'auto', 'random']
+        interpolation_cv = None
         img_height, img_width = img.shape[:2]
-        if interpolation == 'auto':
-            if size[0] > img_width or size[1] > img_height:
-                interpolation = cv2.INTER_LINEAR
+        if interpolation == 'nearest':
+            interpolation_cv = cv2.INTER_NEAREST
+        elif interpolation == 'area':
+            interpolation = cv2.INTER_AREA
+        elif interpolation_cv == 'bicubic':
+            interpolation = cv2.INTER_CUBIC
+        elif interpolation_cv == 'auto':
+            if size[0] == img_width and size[1] == img_height:
+                interpolation_cv = cv2.INTER_LINEAR
+            elif size[0] > img_width or size[1] > img_height:
+                interpolation_cv = cv2.INTER_CUBIC
             else:
-                interpolation = cv2.INTER_AREA
+                interpolation_cv = cv2.INTER_AREA
         else:
             interpolation = np.random.choice([cv2.INTER_LINEAR, cv2.INTER_AREA, cv2.INTER_NEAREST, cv2.INTER_CUBIC])
-        return cv2.resize(img, size, interpolation=interpolation)
+        return cv2.resize(img, size, interpolation=interpolation_cv)
 
     def load_image(self, image_path, channels):
         return cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_GRAYSCALE if channels == 1 else cv2.IMREAD_COLOR)
