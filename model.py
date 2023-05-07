@@ -56,6 +56,8 @@ class Model:
         g_input = tf.keras.layers.Input(shape=self.input_shape)
         x = g_input
         x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
+        x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
+        x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
 
         if self.target_scale >= 2:
             x = self.upsampling(x)
