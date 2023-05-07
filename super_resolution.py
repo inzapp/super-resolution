@@ -74,13 +74,12 @@ class SuperResolution:
             image_paths=self.train_image_paths,
             input_shape=input_shape,
             output_shape=self.output_shape,
-            batch_size=batch_size,
-            use_gan=use_gan)
+            batch_size=batch_size)
 
     def init_image_paths(self, image_path):
         return glob(f'{image_path}/**/*.jpg', recursive=True)
 
-    def compute_gradient(self, model, optimizer, x, y_true, ignore_threshold):
+    def compute_gradient(self, model, optimizer, x, y_true, ignore_threshold=0.0):
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
             loss = tf.reduce_mean(tf.square(y_true - y_pred))
@@ -90,53 +89,63 @@ class SuperResolution:
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return loss
 
-    def build_loss_str(self, iteration_count, d_loss, g_loss):
+    def build_loss_str(self, iteration_count, d_loss, g_loss, gan_flag):
         loss_str = f'[iteration_count : {iteration_count:6d}]'
-        if self.use_gan:
+        if gan_flag:
             loss_str += f' d_loss: {d_loss:>8.4f}'
             loss_str += f', g_loss: {g_loss:>8.4f}'
         else:
-            loss_str += f'loss: {g_loss:>8.4f}'
+            loss_str += f'mse_loss: {g_loss:>8.4f}'
         return loss_str
 
     def fit(self):
         self.model.summary()
         print(f'\ntrain on {len(self.train_image_paths)} samples.')
         print('start training')
+        gan_flag = False
         iteration_count = 0
         os.makedirs(self.checkpoint_path, exist_ok=True)
-        g_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
-        d_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
-        compute_gradient_d = tf.function(self.compute_gradient)
-        compute_gradient_g = tf.function(self.compute_gradient)
-        g_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=0.0, policy='step')
-        d_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=0.0, policy='step')
+        if self.use_gan:
+            g_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
+            d_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
+        m_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
+        if self.use_gan:
+            compute_gradient_d = tf.function(self.compute_gradient)
+            compute_gradient_g = tf.function(self.compute_gradient)
+        compute_gradient_m = tf.function(self.compute_gradient)
+        if self.use_gan:
+            g_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=0.1, policy='step')
+            d_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=0.1, policy='step')
+        m_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=0.1, policy='step')
         while True:
-            for dx, dy, gx, gy in self.train_data_generator:
+            dx, dy, gx, gy = self.train_data_generator.load(gan_flag)
+            if gan_flag:
                 g_lr_scheduler.update(g_optimizer, iteration_count)
-                if self.use_gan:
-                    d_lr_scheduler.update(d_optimizer, iteration_count)
-                    self.d_model.trainable = True
-                    d_loss = compute_gradient_d(self.d_model, d_optimizer, dx, dy, self.d_loss_ignore_threshold)
-                    self.d_model.trainable = False
-                    g_loss = compute_gradient_g(self.gan, g_optimizer, gx, gy, 0.0)
-                else:
-                    d_loss = None
-                    g_loss = compute_gradient_g(self.g_model, g_optimizer, gx, gy, 0.0)
-                iteration_count += 1
-                print(self.build_loss_str(iteration_count, d_loss, g_loss))
-                if self.training_view:
-                    self.training_view_function()
-                if iteration_count % self.save_interval == 0:
-                    model_path_without_extention = f'{self.checkpoint_path}/generator_{iteration_count}_iter'
-                    self.g_model.save(f'{model_path_without_extention}.h5', include_optimizer=False)
-                    generated_images = self.generate_image_grid(grid_size=4)
-                    cv2.imwrite(f'{model_path_without_extention}.jpg', generated_images)
-                    print(f'[iteration count : {iteration_count:6d}] model with generated images saved with {model_path_without_extention} h5 and jpg\n')
-                if iteration_count == self.iterations:
-                    print('\n\ntrain end successfully')
-                    self.show_sr_images()
-                    exit(0)
+                d_lr_scheduler.update(d_optimizer, iteration_count)
+                self.d_model.trainable = True
+                d_loss = compute_gradient_d(self.d_model, d_optimizer, dx, dy, self.d_loss_ignore_threshold)
+                self.d_model.trainable = False
+                g_loss = compute_gradient_g(self.gan, g_optimizer, gx, gy)
+            else:
+                m_lr_scheduler.update(m_optimizer, iteration_count)
+                d_loss = 0.0
+                g_loss = compute_gradient_m(self.g_model, m_optimizer, gx, gy)
+            iteration_count += 1
+            print(self.build_loss_str(iteration_count, d_loss, g_loss, gan_flag))
+            if self.use_gan:
+                gan_flag = not gan_flag
+            if self.training_view:
+                self.training_view_function()
+            if iteration_count % self.save_interval == 0:
+                model_path_without_extention = f'{self.checkpoint_path}/generator_{iteration_count}_iter'
+                self.g_model.save(f'{model_path_without_extention}.h5', include_optimizer=False)
+                generated_images = self.generate_image_grid(grid_size=4)
+                cv2.imwrite(f'{model_path_without_extention}.jpg', generated_images)
+                print(f'[iteration count : {iteration_count:6d}] model with generated images saved with {model_path_without_extention} h5 and jpg\n')
+            if iteration_count == self.iterations:
+                print('\n\ntrain end successfully')
+                self.show_sr_images()
+                exit(0)
 
     @staticmethod
     @tf.function

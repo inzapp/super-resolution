@@ -29,7 +29,6 @@ class DataGenerator:
                  input_shape,
                  output_shape,
                  batch_size,
-                 use_gan,
                  dtype='float32'):
         self.generator = generator
         self.image_paths = image_paths
@@ -37,7 +36,6 @@ class DataGenerator:
         self.output_shape = output_shape
         self.batch_size = batch_size
         self.half_batch_size = batch_size // 2
-        self.use_gan = use_gan
         self.dtype = dtype
         self.pool = ThreadPoolExecutor(8)
         self.img_index = 0
@@ -46,10 +44,10 @@ class DataGenerator:
     def __len__(self):
         return int(np.floor(len(self.image_paths) / self.batch_size))
 
-    def __getitem__(self, index):
-        if self.use_gan:
-            z = np.asarray(self.load_images(count=self.batch_size, shape=self.input_shape, interpolation='random', normalize=True)).astype(self.dtype)
+    def load(self, use_gan):
+        if use_gan:
             from super_resolution import SuperResolution
+            z = np.asarray(self.load_images(count=self.batch_size, shape=self.input_shape, interpolation='random', normalize=True)).astype(self.dtype)
             real_dx = np.asarray(self.load_images(count=self.half_batch_size, shape=self.output_shape, interpolation='auto', normalize=True)).astype(self.dtype)
             real_dy = np.ones((self.half_batch_size, 1), dtype=self.dtype)
             fake_dx = np.asarray(SuperResolution.graph_forward(model=self.generator, x=z[:self.half_batch_size])).astype(self.dtype)
@@ -92,6 +90,7 @@ class DataGenerator:
         return path
 
     def resize(self, img, size, interpolation):
+        assert interpolation in ['auto', 'random']
         interpolation = None
         img_height, img_width = img.shape[:2]
         if interpolation == 'auto':
