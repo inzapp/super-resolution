@@ -95,7 +95,7 @@ class SuperResolution:
             loss_str += f' d_loss: {d_loss:>8.4f}'
             loss_str += f', g_loss: {g_loss:>8.4f}'
         else:
-            loss_str += f'mse_loss: {g_loss:>8.4f}'
+            loss_str += f' mse_loss: {g_loss:>8.4f}'
         return loss_str
 
     def fit(self):
