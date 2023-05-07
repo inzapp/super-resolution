@@ -152,11 +152,24 @@ class SuperResolution:
     def graph_forward(model, x):
         return model(x, training=False)
 
-    def sample_image(self, size=1):
-        z = np.asarray(self.train_data_generator.load_images(count=size, shape=self.input_shape, interpolation='random', normalize=True)).astype('float32')
+    def sample_images(self, size):
+        raw_images = np.asarray(self.train_data_generator.load_images(count=size, shape=self.output_shape, interpolation='auto', normalize=False)).astype('uint8')
+        input_images_reduced = np.asarray([self.train_data_generator.resize(img, (self.input_shape[1], self.input_shape[0]), 'area') for img in raw_images]).astype('uint8')
+        input_images_nearest = np.asarray([self.train_data_generator.resize(img, (self.output_shape[1], self.output_shape[0]), 'nearest') for img in input_images_reduced]).astype('uint8')
+        input_images_bicubic = np.asarray([self.train_data_generator.resize(img, (self.output_shape[1], self.output_shape[0]), 'bicubic') for img in input_images_reduced]).astype('uint8')
+        z = self.train_data_generator.normalize(input_images_reduced)
         y = np.asarray(self.graph_forward(self.g_model, z))
-        generated_images = self.train_data_generator.denormalize(y).reshape((size,) + self.output_shape)
-        return generated_images[0] if size == 1 else generated_images
+        sr_images = self.train_data_generator.denormalize(y).reshape((size,) + self.output_shape)
+        
+        target_shape = (size,) + self.output_shape[:2]
+        if self.input_shape[-1] == 3:
+            target_shape += (self.output_shape[-1],)
+
+        raw_images = np.reshape(raw_images, target_shape)
+        input_images_nearest = np.reshape(input_images_nearest, target_shape)
+        input_images_bicubic = np.reshape(input_images_bicubic, target_shape)
+        sr_images = np.reshape(sr_images, target_shape)
+        return raw_images, input_images_nearest, input_images_bicubic, sr_images
 
     def make_border(self, img, size=5):
         return cv2.copyMakeBorder(img, size, size, size, size, None, value=(192, 192, 192)) 
@@ -170,16 +183,14 @@ class SuperResolution:
             self.live_view_previous_time = cur_time
 
     def generate_image_grid(self, grid_size):
-        generated_images = self.sample_image(size=grid_size * grid_size)
+        raw_images, input_images_nearest, input_images_bicubic, sr_images = self.sample_images(size=grid_size)
         generated_image_grid = None
         for i in range(grid_size):
-            grid_row = None
-            for j in range(grid_size):
-                generated_image = self.make_border(generated_images[i*grid_size+j])
-                if grid_row is None:
-                    grid_row = generated_image
-                else:
-                    grid_row = np.append(grid_row, generated_image, axis=1)
+            raw_image_border = self.make_border(raw_images[i])
+            input_image_nearest_border = self.make_border(input_images_nearest[i])
+            input_image_bicubic_border = self.make_border(input_images_bicubic[i])
+            sr_image_border = self.make_border(sr_images[i])
+            grid_row = np.concatenate((raw_image_border, input_image_nearest_border, input_image_bicubic_border, sr_image_border), axis=1)
             if generated_image_grid is None:
                 generated_image_grid = grid_row
             else:
