@@ -106,16 +106,16 @@ class SuperResolution:
         iteration_count = 0
         os.makedirs(self.checkpoint_path, exist_ok=True)
         if self.use_gan:
-            g_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
-            d_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
+            g_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr * 0.9)
+            d_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr * 0.9)
         m_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
         if self.use_gan:
             compute_gradient_d = tf.function(self.compute_gradient)
             compute_gradient_g = tf.function(self.compute_gradient)
         compute_gradient_m = tf.function(self.compute_gradient)
         if self.use_gan:
-            g_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=0.1, policy='step')
-            d_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=0.1, policy='step')
+            g_lr_scheduler = LRScheduler(lr=self.lr * 0.9, iterations=self.iterations, warm_up=0.1, policy='step')
+            d_lr_scheduler = LRScheduler(lr=self.lr * 0.9, iterations=self.iterations, warm_up=0.1, policy='step')
         m_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=0.1, policy='step')
         while True:
             dx, dy, gx, gy = self.train_data_generator.load(gan_flag)
