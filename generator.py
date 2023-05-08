@@ -96,10 +96,10 @@ class DataGenerator:
         if interpolation == 'nearest':
             interpolation_cv = cv2.INTER_NEAREST
         elif interpolation == 'area':
-            interpolation = cv2.INTER_AREA
-        elif interpolation_cv == 'bicubic':
-            interpolation = cv2.INTER_CUBIC
-        elif interpolation_cv == 'auto':
+            interpolation_cv = cv2.INTER_AREA
+        elif interpolation == 'bicubic':
+            interpolation_cv = cv2.INTER_CUBIC
+        elif interpolation == 'auto':
             if size[0] == img_width and size[1] == img_height:
                 interpolation_cv = cv2.INTER_LINEAR
             elif size[0] > img_width or size[1] > img_height:
