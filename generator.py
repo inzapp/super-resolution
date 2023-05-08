@@ -47,7 +47,7 @@ class DataGenerator:
     def load(self, use_gan):
         if use_gan:
             from super_resolution import SuperResolution
-            z = np.asarray(self.load_images(count=self.batch_size, shape=self.input_shape, interpolation='random', normalize=True)).astype(self.dtype)
+            z = np.asarray(self.load_images(count=self.batch_size, shape=self.input_shape, interpolation='area', normalize=True)).astype(self.dtype)
             real_dx = np.asarray(self.load_images(count=self.half_batch_size, shape=self.output_shape, interpolation='auto', normalize=True)).astype(self.dtype)
             real_dy = np.ones((self.half_batch_size, 1), dtype=self.dtype)
             fake_dx = np.asarray(SuperResolution.graph_forward(model=self.generator, x=z[:self.half_batch_size])).astype(self.dtype)
@@ -58,8 +58,8 @@ class DataGenerator:
             gy = np.append(real_dy, real_dy, axis=0)
             return dx, dy, gx, gy
         else:
-            gy = np.asarray(self.load_images(count=self.batch_size, shape=self.output_shape, interpolation='random', normalize=True)).astype(self.dtype)
-            gx = np.asarray([self.resize(img, (self.input_shape[1], self.input_shape[0]), 'random') for img in gy]).astype(self.dtype)
+            gy = np.asarray(self.load_images(count=self.batch_size, shape=self.output_shape, interpolation='auto', normalize=True)).astype(self.dtype)
+            gx = np.asarray([self.resize(img, (self.input_shape[1], self.input_shape[0]), 'area') for img in gy]).astype(self.dtype)
             return None, None, gx, gy
 
     def normalize(self, x):
@@ -69,7 +69,7 @@ class DataGenerator:
         return (np.clip(np.asarray(x) * 255.0, 0, 255)).astype('uint8')
 
     def load_images(self, count, shape, interpolation, normalize=True):
-        assert interpolation in ['auto', 'random']
+        assert interpolation in ['area', 'auto', 'random']
         fs = []
         for _ in range(count):
             fs.append(self.pool.submit(self.load_image, self.next_image_path(), self.input_shape[-1]))
