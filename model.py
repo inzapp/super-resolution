@@ -133,10 +133,10 @@ class Model:
         return self.activation(x, activation)
 
     def batch_normalization(self, x):
-        return tf.keras.layers.BatchNormalization(momentum=0.8)(x)
+        return tf.keras.layers.BatchNormalization(momentum=0.8 if self.use_gan else 0.98)(x)
 
     def kernel_initializer(self):
-        return tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.02)
+        return tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.02) if self.use_gan else 'glorot_normal'
 
     def activation(self, x, activation):
         if activation == 'leaky':
