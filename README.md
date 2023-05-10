@@ -28,14 +28,10 @@ Because most GAN problems arise because the discriminator is too powerful, ignor
 
 ## Result
 
-We used the Korean license plate dataset and created an SR image of 192x96 size using 48x24 size images
+We used the Korean license plate dataset and created an SR image of 192x96 size using 24x12 size images
 
-Below are the results trained by direct loss
+Tested with a model consisting of 64 filters convolution layers that produces 8x higher resolution images
 
-The order of the images is HR, LR, Bicubic, SR from the left
+The order of the images is HR(High Resolution), LR(Low Resolution), Bicubic(Resize), SR(Super Resolution) from the left
 
 <img src="/md/sample.jpg" width="800"><br>
-
-Below are the results trained by additional adversarial loss(SRGAN)
-
-<img src="/md/sample_srgan.jpg" width="800"><br>
