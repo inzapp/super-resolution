@@ -32,6 +32,6 @@ We used the Korean license plate dataset and created an SR image of 192x96 size 
 
 Tested with a model consisting of 64 filters convolution layers that produces 8x higher resolution images
 
-The order of the images is HR(High Resolution), LR(Low Resolution), Bicubic(Resize), SR(Super Resolution) from the left
+Image order : HR(High Resolution), LR(Low Resolution), Bicubic(Resize), SR(Super Resolution) from the left
 
 <img src="/md/sample.jpg" width="800"><br>
