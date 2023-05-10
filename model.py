@@ -74,7 +74,7 @@ class Model:
             x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
             x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
 
-        if self.target_scale >= 8:
+        if self.target_scale >= 16:
             x = self.upsampling(x)
             x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
             x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
