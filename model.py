@@ -55,34 +55,30 @@ class Model:
     def build_g(self, bn):
         g_input = tf.keras.layers.Input(shape=self.input_shape)
         x = g_input
-        x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
-        x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
-        x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
-
         if self.target_scale >= 2:
             x = self.upsampling(x)
-            x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
 
         if self.target_scale >= 4:
             x = self.upsampling(x)
-            x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
 
         if self.target_scale >= 8:
             x = self.upsampling(x)
-            x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
 
         if self.target_scale >= 16:
             x = self.upsampling(x)
-            x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
 
         if self.target_scale >= 32:
             x = self.upsampling(x)
-            x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d_transpose(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
 
         g_output = self.conv2d(x, self.output_shape[-1], 1, 1, activation='sigmoid', bn=False)
         return g_input, g_output
@@ -105,19 +101,7 @@ class Model:
             filters=filters,
             padding='same',
             kernel_size=kernel_size,
-            use_bias=False if bn else True,
-            kernel_initializer=self.kernel_initializer())(x)
-        if bn:
-            x = self.batch_normalization(x)
-        return self.activation(x, activation)
-
-    def conv2d_transpose(self, x, filters, kernel_size, strides, bn=False, activation='relu'):
-        x = tf.keras.layers.Conv2DTranspose(
-            strides=strides,
-            filters=filters,
-            padding='same',
-            kernel_size=kernel_size,
-            use_bias=False if bn else True,
+            use_bias=not bn,
             kernel_initializer=self.kernel_initializer())(x)
         if bn:
             x = self.batch_normalization(x)
@@ -126,7 +110,7 @@ class Model:
     def dense(self, x, units, bn=False, activation='relu'):
         x = tf.keras.layers.Dense(
             units=units,
-            use_bias=False if bn else True,
+            use_bias=not bn,
             kernel_initializer=self.kernel_initializer())(x)
         if bn:
             x = self.batch_normalization(x)
