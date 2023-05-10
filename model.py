@@ -55,30 +55,32 @@ class Model:
     def build_g(self, bn):
         g_input = tf.keras.layers.Input(shape=self.input_shape)
         x = g_input
+        end_filters = 16
+        initial_filters = end_filters * (self.target_scale // 2)
         if self.target_scale >= 2:
             x = self.upsampling(x)
-            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, initial_filters // 1, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, initial_filters // 1, 3, 1, activation='relu', bn=bn)
 
         if self.target_scale >= 4:
             x = self.upsampling(x)
-            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, initial_filters // 2, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, initial_filters // 2, 3, 1, activation='relu', bn=bn)
 
         if self.target_scale >= 8:
             x = self.upsampling(x)
-            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, initial_filters // 4, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, initial_filters // 4, 3, 1, activation='relu', bn=bn)
 
         if self.target_scale >= 16:
             x = self.upsampling(x)
-            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, initial_filters // 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, initial_filters // 8, 3, 1, activation='relu', bn=bn)
 
         if self.target_scale >= 32:
             x = self.upsampling(x)
-            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d(x, 8, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, initial_filters // 16, 3, 1, activation='relu', bn=bn)
+            x = self.conv2d(x, initial_filters // 16, 3, 1, activation='relu', bn=bn)
 
         g_output = self.conv2d(x, self.output_shape[-1], 1, 1, activation='sigmoid', bn=False)
         return g_input, g_output
