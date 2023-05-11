@@ -39,6 +39,7 @@ from generator import DataGenerator
 class SuperResolution:
     def __init__(self,
                  train_image_path,
+                 validation_image_path,
                  input_shape=(32, 32, 1),
                  target_scale=2,
                  lr=1e-3,
@@ -69,9 +70,16 @@ class SuperResolution:
         self.g_model, self.d_model, self.gan = self.model.build()
 
         self.train_image_paths = self.init_image_paths(train_image_path)
+        self.validation_image_paths = self.init_image_paths(validation_image_path)
         self.train_data_generator = DataGenerator(
             generator=self.g_model,
             image_paths=self.train_image_paths,
+            input_shape=input_shape,
+            output_shape=self.output_shape,
+            batch_size=batch_size)
+        self.validation_data_generator = DataGenerator(
+            generator=None,
+            image_paths=self.validation_image_paths,
             input_shape=input_shape,
             output_shape=self.output_shape,
             batch_size=batch_size)
@@ -154,13 +162,14 @@ class SuperResolution:
         return model(x, training=False)
 
     def sample_images(self, size):
-        raw_images = np.asarray(self.train_data_generator.load_images(count=size, shape=self.output_shape, interpolation='auto', normalize=False)).astype('uint8')
-        input_images_reduced = np.asarray([self.train_data_generator.resize(img, (self.input_shape[1], self.input_shape[0]), 'area') for img in raw_images]).astype('uint8')
-        input_images_nearest = np.asarray([self.train_data_generator.resize(img, (self.output_shape[1], self.output_shape[0]), 'nearest') for img in input_images_reduced]).astype('uint8')
-        input_images_bicubic = np.asarray([self.train_data_generator.resize(img, (self.output_shape[1], self.output_shape[0]), 'bicubic') for img in input_images_reduced]).astype('uint8')
-        z = self.train_data_generator.normalize(input_images_reduced)
+        data_generator = self.validation_data_generator
+        raw_images = np.asarray(data_generator.load_images(count=size, shape=self.output_shape, interpolation='auto', normalize=False)).astype('uint8')
+        input_images_reduced = np.asarray([data_generator.resize(img, (self.input_shape[1], self.input_shape[0]), 'area') for img in raw_images]).astype('uint8')
+        input_images_nearest = np.asarray([data_generator.resize(img, (self.output_shape[1], self.output_shape[0]), 'nearest') for img in input_images_reduced]).astype('uint8')
+        input_images_bicubic = np.asarray([data_generator.resize(img, (self.output_shape[1], self.output_shape[0]), 'bicubic') for img in input_images_reduced]).astype('uint8')
+        z = data_generator.normalize(input_images_reduced)
         y = np.asarray(self.graph_forward(self.g_model, z))
-        sr_images = self.train_data_generator.denormalize(y).reshape((size,) + self.output_shape)
+        sr_images = data_generator.denormalize(y).reshape((size,) + self.output_shape)
         
         target_shape = (size,) + self.output_shape[:2]
         if self.input_shape[-1] == 3:

@@ -28,7 +28,8 @@ from super_resolution import SuperResolution
 
 if __name__ == '__main__':
     SuperResolution(
-        train_image_path=r'/train_data/imagenet',
+        train_image_path=r'/train_data/imagenet/train',
+        validation_image_path=r'/train_data/imagenet/validation',
         input_shape=(32, 32, 1),
         target_scale=2,
         lr=0.001,
