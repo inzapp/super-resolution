@@ -42,8 +42,8 @@ class Model:
         self.d_model = None
 
     def build(self):
-        assert self.output_shape[0] % 32 == 0 and self.output_shape[1] % 32 == 0
-        g_input, g_output = self.build_g(bn=True)
+        assert self.output_shape[0] % self.target_scale == 0 and self.output_shape[1] % self.target_scale == 0
+        g_input, g_output = self.build_g(bn=self.use_gan)
         self.g_model = tf.keras.models.Model(g_input, g_output)
         if self.use_gan:
             d_input, d_output = self.build_d(bn=False)
