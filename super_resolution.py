@@ -155,11 +155,10 @@ class SuperResolution(CheckpointManager):
                 self.g_model.save(f'{model_path_without_extention}.h5', include_optimizer=False)
                 generated_images = self.generate_image_grid(grid_size=4)
                 cv2.imwrite(f'{model_path_without_extention}.jpg', generated_images)
-                print(f'[iteration count : {iteration_count:6d}] model with generated images saved with {model_path_without_extention} h5 and jpg\n')
+                print(f'\n[iteration count : {iteration_count:6d}] model with generated images saved with {model_path_without_extention} h5 and jpg\n')
             if iteration_count == self.iterations:
-                print('\n\ntrain end successfully')
-                self.show_sr_images()
-                exit(0)
+                print('\ntrain end successfully')
+                return
 
     @staticmethod
     @tf.function
