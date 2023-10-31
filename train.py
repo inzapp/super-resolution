@@ -30,12 +30,14 @@ if __name__ == '__main__':
     SuperResolution(
         train_image_path=r'/train_data/imagenet/train',
         validation_image_path=r'/train_data/imagenet/validation',
+        model_name='model',
         input_shape=(32, 32, 1),
         target_scale=2,
         lr=0.001,
-        batch_size=32,
+        warm_up=0.5,
+        batch_size=4,
         view_grid_size=4,
-        save_interval=2000,
-        iterations=100000,
-        training_view=False).fit()
+        save_interval=10000,
+        iterations=1000000,
+        training_view=False).train()
 

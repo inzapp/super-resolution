@@ -25,37 +25,42 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import cv2
 import numpy as np
+import silence_tensorflow.auto
 import tensorflow as tf
 
-import cv2
 from glob import glob
 from time import time
 from model import Model
 from lr_scheduler import LRScheduler
 from generator import DataGenerator
+from ckpt_manager import CheckpointManager
 
 
-class SuperResolution:
+class SuperResolution(CheckpointManager):
     def __init__(self,
                  train_image_path,
                  validation_image_path,
-                 input_shape=(32, 32, 1),
-                 target_scale=2,
-                 lr=1e-3,
-                 batch_size=32,
-                 save_interval=2000,
-                 iterations=100000,
-                 view_grid_size=4,
+                 model_name,
+                 input_shape,
+                 target_scale,
+                 lr,
+                 warm_up,
+                 batch_size,
+                 save_interval,
+                 iterations,
+                 view_grid_size,
                  d_loss_ignore_threshold=0.01,
-                 checkpoint_path='checkpoint',
                  use_gan=False,
                  training_view=False):
         assert input_shape[2] in [1, 3]
-        self.input_shape = input_shape
         assert target_scale in [2, 4, 8, 16, 32]
+        self.input_shape = input_shape
         self.output_shape = (self.input_shape[0] * target_scale, self.input_shape[1] * target_scale, self.input_shape[2])
         self.lr = lr
+        self.warm_up = warm_up
         self.batch_size = batch_size
         self.save_interval = save_interval
         self.iterations = iterations
@@ -63,8 +68,8 @@ class SuperResolution:
         self.use_gan = use_gan
         self.training_view = training_view
         self.d_loss_ignore_threshold = d_loss_ignore_threshold
-        self.checkpoint_path = checkpoint_path
         self.live_view_previous_time = time()
+        self.set_model_name(model_name)
 
         self.model = Model(input_shape=input_shape, output_shape=self.output_shape, use_gan=use_gan)
         self.g_model, self.d_model, self.gan = self.model.build()
@@ -98,7 +103,7 @@ class SuperResolution:
         return loss
 
     def build_loss_str(self, iteration_count, d_loss, g_loss, gan_flag):
-        loss_str = f'[iteration_count : {iteration_count:6d}]'
+        loss_str = f'\r[iteration_count : {iteration_count:6d}]'
         if gan_flag:
             loss_str += f' d_loss: {d_loss:>8.4f}'
             loss_str += f', g_loss: {g_loss:>8.4f}'
@@ -107,25 +112,25 @@ class SuperResolution:
             loss_str += f' PSNR: {psnr:>8.2f}'
         return loss_str
 
-    def fit(self):
+    def train(self):
         self.model.summary()
         print(f'\ntrain on {len(self.train_image_paths)} samples.')
         print('start training')
         gan_flag = False
-        iteration_count = 0
-        os.makedirs(self.checkpoint_path, exist_ok=True)
         if self.use_gan:
-            g_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr * 0.5)
-            d_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr * 0.1)
-        m_optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
+            g_optimizer = tf.keras.optimizers.RMSprop(learning_rate=self.lr * 0.5)
+            d_optimizer = tf.keras.optimizers.RMSprop(learning_rate=self.lr * 0.1)
+        m_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         if self.use_gan:
             compute_gradient_d = tf.function(self.compute_gradient)
             compute_gradient_g = tf.function(self.compute_gradient)
         compute_gradient_m = tf.function(self.compute_gradient)
         if self.use_gan:
-            g_lr_scheduler = LRScheduler(lr=self.lr * 0.5, iterations=self.iterations, warm_up=0.1, policy='step')
-            d_lr_scheduler = LRScheduler(lr=self.lr * 0.1, iterations=self.iterations, warm_up=0.1, policy='step')
-        m_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=0.1, policy='step')
+            g_lr_scheduler = LRScheduler(lr=self.lr * 0.5, iterations=self.iterations, warm_up=self.warm_up, policy='step')
+            d_lr_scheduler = LRScheduler(lr=self.lr * 0.1, iterations=self.iterations, warm_up=self.warm_up, policy='step')
+        m_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=self.warm_up, policy='step')
+        iteration_count = 0
+        self.init_checkpoint_dir()
         while True:
             dx, dy, gx, gy = self.train_data_generator.load(gan_flag)
             if gan_flag:
@@ -140,13 +145,13 @@ class SuperResolution:
                 d_loss = 0.0
                 g_loss = compute_gradient_m(self.g_model, m_optimizer, gx, gy)
             iteration_count += 1
-            print(self.build_loss_str(iteration_count, d_loss, g_loss, gan_flag))
+            print(self.build_loss_str(iteration_count, d_loss, g_loss, gan_flag), end='')
             if self.use_gan:
                 gan_flag = not gan_flag
             if self.training_view:
                 self.training_view_function()
             if iteration_count % self.save_interval == 0:
-                model_path_without_extention = f'{self.checkpoint_path}/generator_{iteration_count}_iter'
+                model_path_without_extention = f'{self.checkpoint_path}/model_{iteration_count}_iter'
                 self.g_model.save(f'{model_path_without_extention}.h5', include_optimizer=False)
                 generated_images = self.generate_image_grid(grid_size=4)
                 cv2.imwrite(f'{model_path_without_extention}.jpg', generated_images)
