@@ -17,8 +17,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import os
 import cv2
 import numpy as np
+
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
@@ -58,9 +60,14 @@ class DataGenerator:
             gy = np.append(real_dy, real_dy, axis=0)
             return dx, dy, gx, gy
         else:
-            gy = np.asarray(self.load_images(count=self.batch_size, shape=self.output_shape, interpolation='auto', normalize=True)).astype(self.dtype)
-            gx = np.asarray([self.resize(img, (self.input_shape[1], self.input_shape[0]), 'area') for img in gy]).astype(self.dtype)
+            paths = [self.next_image_path() for path in range(self.batch_size)]
+            gx = np.asarray(self.load_images(paths=paths, shape=self.input_shape, interpolation='area', normalize=True, noisy=True)).astype(self.dtype)
+            gy = np.asarray(self.load_images(paths=paths, shape=self.output_shape, interpolation='auto', normalize=True)).astype(self.dtype)
+            # gx = np.asarray([self.resize(img, (self.input_shape[1], self.input_shape[0]), 'area') for img in gy]).astype(self.dtype)
             return None, None, gx, gy
+
+    def noisy_path(self, path):
+        return f'{path[:-4]}_NOISY_0.jpg'
 
     def normalize(self, x):
         return np.asarray(x).astype('float32') / 255.0
@@ -68,11 +75,13 @@ class DataGenerator:
     def denormalize(self, x):
         return (np.clip(np.asarray(x) * 255.0, 0, 255)).astype('uint8')
 
-    def load_images(self, count, shape, interpolation, normalize=True):
+    def load_images(self, paths, shape, interpolation, normalize=True, noisy=False):
         assert interpolation in ['area', 'auto', 'random']
         fs = []
-        for _ in range(count):
-            fs.append(self.pool.submit(self.load_image, self.next_image_path(), self.input_shape[-1]))
+        for path in paths:
+            if noisy:
+                path = self.noisy_path(path)
+            fs.append(self.pool.submit(self.load_image, path, self.input_shape[-1]))
         images = []
         for f in fs:
             img = f.result()

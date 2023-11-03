@@ -52,37 +52,52 @@ class Model:
             self.gan = tf.keras.models.Model(g_input, gan_output)
         return self.g_model, self.d_model, self.gan
 
-    def build_g(self, bn):
+    # def build_g(self, bn):
+    #     g_input = tf.keras.layers.Input(shape=self.input_shape)
+    #     x = g_input
+    #     end_filters = 16
+    #     initial_filters = end_filters * (self.target_scale // 2)
+    #     if self.target_scale >= 2:
+    #         x = self.upsampling(x)
+    #         x = self.conv2d(x, initial_filters // 1, 3, 1, activation='relu', bn=bn)
+    #         x = self.conv2d(x, initial_filters // 1, 3, 1, activation='relu', bn=bn)
+
+    #     if self.target_scale >= 4:
+    #         x = self.upsampling(x)
+    #         x = self.conv2d(x, initial_filters // 2, 3, 1, activation='relu', bn=bn)
+    #         x = self.conv2d(x, initial_filters // 2, 3, 1, activation='relu', bn=bn)
+
+    #     if self.target_scale >= 8:
+    #         x = self.upsampling(x)
+    #         x = self.conv2d(x, initial_filters // 4, 3, 1, activation='relu', bn=bn)
+    #         x = self.conv2d(x, initial_filters // 4, 3, 1, activation='relu', bn=bn)
+
+    #     if self.target_scale >= 16:
+    #         x = self.upsampling(x)
+    #         x = self.conv2d(x, initial_filters // 8, 3, 1, activation='relu', bn=bn)
+    #         x = self.conv2d(x, initial_filters // 8, 3, 1, activation='relu', bn=bn)
+
+    #     if self.target_scale >= 32:
+    #         x = self.upsampling(x)
+    #         x = self.conv2d(x, initial_filters // 16, 3, 1, activation='relu', bn=bn)
+    #         x = self.conv2d(x, initial_filters // 16, 3, 1, activation='relu', bn=bn)
+
+    #     g_output = self.conv2d(x, self.output_shape[-1], 1, 1, activation='sigmoid', bn=False)
+    #     return g_input, g_output
+
+    def build_g(self, bn):  # quicksr
         g_input = tf.keras.layers.Input(shape=self.input_shape)
         x = g_input
-        end_filters = 16
-        initial_filters = end_filters * (self.target_scale // 2)
-        if self.target_scale >= 2:
-            x = self.upsampling(x)
-            x = self.conv2d(x, initial_filters // 1, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d(x, initial_filters // 1, 3, 1, activation='relu', bn=bn)
+        x = self.conv2d(x, 32, 3, 1, activation='relu', bn=bn)
+        x = self.conv2d(x, 32, 3, 1, activation='relu', bn=bn)
+        x = self.conv2d(x, 32, 3, 1, activation='relu', bn=bn)
+        x = self.conv2d(x, self.input_shape[-1] * self.target_scale * self.target_scale, 3, 1, activation='sigmoid', bn=bn)
 
-        if self.target_scale >= 4:
-            x = self.upsampling(x)
-            x = self.conv2d(x, initial_filters // 2, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d(x, initial_filters // 2, 3, 1, activation='relu', bn=bn)
-
-        if self.target_scale >= 8:
-            x = self.upsampling(x)
-            x = self.conv2d(x, initial_filters // 4, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d(x, initial_filters // 4, 3, 1, activation='relu', bn=bn)
-
-        if self.target_scale >= 16:
-            x = self.upsampling(x)
-            x = self.conv2d(x, initial_filters // 8, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d(x, initial_filters // 8, 3, 1, activation='relu', bn=bn)
-
-        if self.target_scale >= 32:
-            x = self.upsampling(x)
-            x = self.conv2d(x, initial_filters // 16, 3, 1, activation='relu', bn=bn)
-            x = self.conv2d(x, initial_filters // 16, 3, 1, activation='relu', bn=bn)
-
-        g_output = self.conv2d(x, self.output_shape[-1], 1, 1, activation='sigmoid', bn=False)
+        # use hard-coded constant for avoiding Not JSON Serializable error
+        if self.target_scale == 2:
+            g_output = tf.keras.layers.Lambda(lambda x: tf.nn.depth_to_space(x, 2), name='dn_output')(x)
+        elif self.target_scale == 4:
+            g_output = tf.keras.layers.Lambda(lambda x: tf.nn.depth_to_space(x, 4), name='dn_output')(x)
         return g_input, g_output
 
     def build_d(self, bn):

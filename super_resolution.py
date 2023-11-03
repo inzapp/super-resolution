@@ -89,8 +89,18 @@ class SuperResolution(CheckpointManager):
             output_shape=self.output_shape,
             batch_size=batch_size)
 
+    # def init_image_paths(self, image_path):
+    #     return glob(f'{image_path}/**/*.jpg', recursive=True)
+
     def init_image_paths(self, image_path):
-        return glob(f'{image_path}/**/*.jpg', recursive=True)
+        paths_all = glob(f'{image_path}/**/*.jpg', recursive=True)
+        paths_gt, paths_noisy = [], []
+        for path in paths_all:
+            if os.path.basename(path).find('_NOISY_') == -1:
+                paths_gt.append(path)
+            else:
+                paths_noisy.append(path)
+        return paths_gt
 
     def compute_gradient(self, model, optimizer, x, y_true, ignore_threshold=0.0):
         with tf.GradientTape() as tape:
@@ -151,11 +161,12 @@ class SuperResolution(CheckpointManager):
             if self.training_view:
                 self.training_view_function()
             if iteration_count % self.save_interval == 0:
-                model_path_without_extention = f'{self.checkpoint_path}/model_{iteration_count}_iter'
-                self.g_model.save(f'{model_path_without_extention}.h5', include_optimizer=False)
-                generated_images = self.generate_image_grid(grid_size=4)
-                cv2.imwrite(f'{model_path_without_extention}.jpg', generated_images)
-                print(f'\n[iteration count : {iteration_count:6d}] model with generated images saved with {model_path_without_extention} h5 and jpg\n')
+                self.save_last_model(self.g_model, iteration_count)
+                # model_path_without_extention = f'{self.checkpoint_path}/model_{iteration_count}_iter'
+                # self.g_model.save(f'{model_path_without_extention}.h5', include_optimizer=False)
+                # generated_images = self.generate_image_grid(grid_size=4)
+                # cv2.imwrite(f'{model_path_without_extention}.jpg', generated_images)
+                # print(f'\n[iteration count : {iteration_count:6d}] model with generated images saved with {model_path_without_extention} h5 and jpg\n')
             if iteration_count == self.iterations:
                 print('\ntrain end successfully')
                 return
