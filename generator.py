@@ -120,5 +120,8 @@ class DataGenerator:
         return cv2.resize(img, size, interpolation=interpolation_cv)
 
     def load_image(self, image_path, channels):
-        return cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_GRAYSCALE if channels == 1 else cv2.IMREAD_COLOR)
+        img = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_GRAYSCALE if channels == 1 else cv2.IMREAD_COLOR)
+        if channels == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        return img
 
