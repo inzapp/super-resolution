@@ -108,8 +108,7 @@ class SuperResolution(CheckpointManager):
             loss_str += f' d_loss: {d_loss:>8.4f}'
             loss_str += f', g_loss: {g_loss:>8.4f}'
         else:
-            psnr = 20 * np.log10(1.0 / np.sqrt(g_loss)) if g_loss != 0.0 else 100.0
-            loss_str += f' PSNR: {psnr:>8.2f}'
+            loss_str += f' loss: {g_loss:.4f}'
         return loss_str
 
     def train(self):
