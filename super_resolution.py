@@ -181,7 +181,7 @@ class SuperResolution(CheckpointManager):
     def psnr(self, mse):
         return 20 * np.log10(1.0 / np.sqrt(mse)) if mse!= 0.0 else 100.0
 
-    def evaluate(self, image_path='', dataset='validation'):
+    def evaluate(self, image_path='', dataset='validation', show_image=False, save_count=0):
         image_paths = []
         if image_path != '':
             if not os.path.exists(image_path):
@@ -209,24 +209,51 @@ class SuperResolution(CheckpointManager):
             output_shape=self.output_shape,
             batch_size=1)
 
+        cnt = 0
         psnr_sum = 0.0
         ssim_sum = 0.0
-        for path in tqdm(image_paths):
+        evaluate_psnr_ssim = True
+        save_dir = 'result_images'
+        if show_image or save_count > 0:
+            evaluate_psnr_ssim = False
+            if save_count > 0:
+                os.makedirs(save_dir, exist_ok=True)
+
+        paths = tqdm(image_paths) if evaluate_psnr_ssim else image_paths
+        for path in paths:
             img = data_generator.load_image(path, self.input_shape[-1])
             img_hr = data_generator.resize(img, (self.output_shape[1], self.output_shape[0]), interpolation='auto')
-            img_lr = data_generator.resize(img, (self.input_shape[1], self.input_shape[0]), interpolation='auto')
+            img_lr = data_generator.resize(img, (self.input_shape[1], self.input_shape[0]), interpolation='area')
             img_sr = self.predict(img_lr)
+            if evaluate_psnr_ssim:
+                img_hr_norm = data_generator.preprocess(img_hr)
+                img_sr_norm = data_generator.preprocess(img_sr)
+                mse = np.mean((img_hr_norm - img_sr_norm) ** 2.0)
+                ssim = tf.image.ssim(img_hr_norm, img_sr_norm, 1.0)
+                psnr = self.psnr(mse)
+                psnr_sum += psnr
+                ssim_sum += ssim
+            else:
+                img_lr_nearest = data_generator.resize(img_lr, (self.output_shape[1], self.output_shape[0]), interpolation='nearest')
+                img_concat = np.concatenate([img_lr_nearest, img_sr, img_hr], axis=1)
+                if show_image:
+                    cv2.imshow('img', img_concat)
+                    key = cv2.waitKey(0)
+                    if key == 27:
+                        return
+                else:
+                    basename = os.path.basename(path)
+                    save_path = f'{save_dir}/{basename}'
+                    cv2.imwrite(save_path, img_concat)
+                    cnt += 1
+                    print(f'[{cnt} / {save_count}] save success : {save_path}')
+                    if cnt == save_count:
+                        return
 
-            img_hr_norm = data_generator.preprocess(img_hr)
-            img_sr_norm = data_generator.preprocess(img_sr)
-            mse = np.mean((img_hr_norm - img_sr_norm) ** 2.0)
-            ssim = tf.image.ssim(img_hr_norm, img_sr_norm, 1.0)
-            psnr = self.psnr(mse)
-            psnr_sum += psnr
-            ssim_sum += ssim
-        avg_psnr = psnr_sum / float(len(image_paths))
-        avg_ssim = ssim_sum / float(len(image_paths))
-        print(f'\npsnr : {avg_psnr:.2f}, ssim : {avg_ssim:.4f}')
+        if evaluate_psnr_ssim:
+            avg_psnr = psnr_sum / float(len(image_paths))
+            avg_ssim = ssim_sum / float(len(image_paths))
+            print(f'\npsnr : {avg_psnr:.2f}, ssim : {avg_ssim:.4f}')
 
     @staticmethod
     @tf.function
