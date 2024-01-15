@@ -27,6 +27,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import cv2
+import random
 import numpy as np
 import silence_tensorflow.auto
 import tensorflow as tf
@@ -56,9 +57,12 @@ class SuperResolution(CheckpointManager):
                  pretrained_model_path='',
                  d_loss_ignore_threshold=0.01,
                  use_gan=False,
-                 training_view=False):
+                 training_view=False,
+                 use_fixed_seed=False):
         assert input_shape[2] in [1, 3]
         assert target_scale in [2, 4, 8, 16, 32]
+        if use_fixed_seed:
+            self.fix_global_seed()
         self.pretrained_model_path = pretrained_model_path
         self.input_shape = input_shape
         self.output_shape = (self.input_shape[0] * target_scale, self.input_shape[1] * target_scale, self.input_shape[2])
@@ -106,6 +110,12 @@ class SuperResolution(CheckpointManager):
 
     def init_image_paths(self, image_path):
         return glob(f'{image_path}/**/*.jpg', recursive=True)
+
+    def fix_global_seed(self, seed=42):
+        random.seed(seed)
+        np.random.seed(seed)
+        os.environ['PYTHONHASHSEED'] = str(seed)
+        tf.random.set_seed(seed)
 
     def compute_gradient(self, model, optimizer, x, y_true, ignore_threshold=0.0):
         with tf.GradientTape() as tape:
