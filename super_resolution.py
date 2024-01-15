@@ -32,6 +32,7 @@ import silence_tensorflow.auto
 import tensorflow as tf
 
 from glob import glob
+from tqdm import tqdm
 from time import time
 from model import Model
 from lr_scheduler import LRScheduler
@@ -52,11 +53,13 @@ class SuperResolution(CheckpointManager):
                  save_interval,
                  iterations,
                  view_grid_size,
+                 pretrained_model_path='',
                  d_loss_ignore_threshold=0.01,
                  use_gan=False,
                  training_view=False):
         assert input_shape[2] in [1, 3]
         assert target_scale in [2, 4, 8, 16, 32]
+        self.pretrained_model_path = pretrained_model_path
         self.input_shape = input_shape
         self.output_shape = (self.input_shape[0] * target_scale, self.input_shape[1] * target_scale, self.input_shape[2])
         self.lr = lr
@@ -71,8 +74,19 @@ class SuperResolution(CheckpointManager):
         self.live_view_previous_time = time()
         self.set_model_name(model_name)
 
-        self.model = Model(input_shape=input_shape, output_shape=self.output_shape, use_gan=use_gan)
-        self.g_model, self.d_model, self.gan = self.model.build()
+        self.g_model, self.d_model, self.gan = None, None, None
+        if self.pretrained_model_path == '':
+            self.model = Model(input_shape=input_shape, output_shape=self.output_shape, use_gan=use_gan)
+            self.g_model, self.d_model, self.gan = self.model.build()
+        else:
+            if os.path.exists(self.pretrained_model_path) and os.path.isfile(self.pretrained_model_path):
+                self.g_model = tf.keras.models.load_model(self.pretrained_model_path, compile=False)
+                self.input_shape = self.g_model.input_shape[1:]
+                self.output_shape = self.g_model.output_shape[1:]
+                self.model = Model(input_shape=input_shape, output_shape=self.output_shape, use_gan=use_gan)
+            else:
+                print(f'pretrained_model_path not found : {self.pretrained_model_path}')
+                exit(0)
 
         self.train_image_paths = self.init_image_paths(train_image_path)
         self.validation_image_paths = self.init_image_paths(validation_image_path)
@@ -157,6 +171,62 @@ class SuperResolution(CheckpointManager):
             if iteration_count == self.iterations:
                 print('\ntrain end successfully')
                 return
+
+    def predict(self, img_lr):
+        z = self.train_data_generator.preprocess(img_lr).reshape((1,) + self.input_shape)
+        y = np.asarray(self.graph_forward(self.g_model, z))[0]
+        img_sr = self.train_data_generator.postprocess(y)
+        return img_sr
+
+    def psnr(self, mse):
+        return 20 * np.log10(1.0 / np.sqrt(mse)) if mse!= 0.0 else 100.0
+
+    def evaluate(self, image_path='', dataset='validation'):
+        image_paths = []
+        if image_path != '':
+            if not os.path.exists(image_path):
+                print(f'image path not found : {image_path}')
+                return
+            if os.path.isdir(image_path):
+                image_paths = self.init_image_paths(image_path)
+            else:
+                image_paths = [image_path]
+        else:
+            assert dataset in ['train', 'validation']
+            if dataset == 'train':
+                image_paths = self.train_image_paths
+            else:
+                image_paths = self.validation_image_paths
+
+        if len(image_paths) == 0:
+            print(f'no images found')
+            return
+
+        data_generator = DataGenerator(
+            generator=None,
+            image_paths=image_paths,
+            input_shape=self.input_shape,
+            output_shape=self.output_shape,
+            batch_size=1)
+
+        psnr_sum = 0.0
+        ssim_sum = 0.0
+        for path in tqdm(image_paths):
+            img = data_generator.load_image(path, self.input_shape[-1])
+            img_hr = data_generator.resize(img, (self.output_shape[1], self.output_shape[0]), interpolation='auto')
+            img_lr = data_generator.resize(img, (self.input_shape[1], self.input_shape[0]), interpolation='auto')
+            img_sr = self.predict(img_lr)
+
+            img_hr_norm = data_generator.preprocess(img_hr)
+            img_sr_norm = data_generator.preprocess(img_sr)
+            mse = np.mean((img_hr_norm - img_sr_norm) ** 2.0)
+            ssim = tf.image.ssim(img_hr_norm, img_sr_norm, 1.0)
+            psnr = self.psnr(mse)
+            psnr_sum += psnr
+            ssim_sum += ssim
+        avg_psnr = psnr_sum / float(len(image_paths))
+        avg_ssim = ssim_sum / float(len(image_paths))
+        print(f'\npsnr : {avg_psnr:.2f}, ssim : {avg_ssim:.4f}')
 
     @staticmethod
     @tf.function
