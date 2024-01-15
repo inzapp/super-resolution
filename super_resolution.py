@@ -161,16 +161,18 @@ class SuperResolution(CheckpointManager):
         print('start training')
         gan_flag = False
         if self.use_gan:
-            g_optimizer = tf.keras.optimizers.RMSprop(learning_rate=self.lr * 0.5)
-            d_optimizer = tf.keras.optimizers.RMSprop(learning_rate=self.lr * 0.1)
+            g_lr = self.lr * 0.001
+            d_lr = self.lr * 0.2
+            g_optimizer = tf.keras.optimizers.RMSprop(learning_rate=g_lr)
+            d_optimizer = tf.keras.optimizers.RMSprop(learning_rate=d_lr)
         m_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         if self.use_gan:
             compute_gradient_d = tf.function(self.compute_gradient)
             compute_gradient_g = tf.function(self.compute_gradient)
         compute_gradient_m = tf.function(self.compute_gradient)
         if self.use_gan:
-            g_lr_scheduler = LRScheduler(lr=self.lr * 0.5, iterations=self.iterations, warm_up=self.warm_up, policy='step')
-            d_lr_scheduler = LRScheduler(lr=self.lr * 0.1, iterations=self.iterations, warm_up=self.warm_up, policy='step')
+            g_lr_scheduler = LRScheduler(lr=g_lr, iterations=self.iterations, warm_up=self.warm_up, policy='step')
+            d_lr_scheduler = LRScheduler(lr=d_lr, iterations=self.iterations, warm_up=self.warm_up, policy='step')
         m_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=self.warm_up, policy='step')
         iteration_count = 0
         self.init_checkpoint_dir()
