@@ -75,7 +75,7 @@ class DataGenerator:
         if img is None:
             print(f'img is None, path : {image_path}')
             return img
-        if channels == 1:
+        if channels == 1 and len(img.shape) == 2:
             img = img.reshape(img.shape + (1,))
         img = np.asarray(img).astype('uint8')
         return img
@@ -88,6 +88,8 @@ class DataGenerator:
         for f in fs:
             img = f.result()
             img = self.resize(img, (shape[1], shape[0]), interpolation)
+            if shape[-1] == 1 and len(img.shape) == 2:
+                img = img.reshape(img.shape + (1,))
             images.append(img)
         return images
 
