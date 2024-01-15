@@ -41,10 +41,14 @@ class Model:
         self.g_model = None
         self.d_model = None
 
-    def build(self):
+    def build(self, pretrained_g_model=None):
         assert self.output_shape[0] % self.target_scale == 0 and self.output_shape[1] % self.target_scale == 0
-        g_input, g_output = self.build_g(bn=self.use_gan)
-        self.g_model = tf.keras.models.Model(g_input, g_output)
+        if pretrained_g_model is None:
+            g_input, g_output = self.build_g(bn=self.use_gan)
+            self.g_model = tf.keras.models.Model(g_input, g_output)
+        else:
+            g_input, g_output = pretrained_g_model.input, pretrained_g_model.output
+            self.g_model = pretrained_g_model
         if self.use_gan:
             d_input, d_output = self.build_d(bn=False)
             self.d_model = tf.keras.models.Model(d_input, d_output)

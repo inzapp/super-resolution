@@ -80,10 +80,11 @@ class SuperResolution(CheckpointManager):
             self.g_model, self.d_model, self.gan = self.model.build()
         else:
             if os.path.exists(self.pretrained_model_path) and os.path.isfile(self.pretrained_model_path):
-                self.g_model = tf.keras.models.load_model(self.pretrained_model_path, compile=False)
-                self.input_shape = self.g_model.input_shape[1:]
-                self.output_shape = self.g_model.output_shape[1:]
+                pretrained_g_model = tf.keras.models.load_model(self.pretrained_model_path, compile=False)
+                self.input_shape = pretrained_g_model.input_shape[1:]
+                self.output_shape = pretrained_g_model.output_shape[1:]
                 self.model = Model(input_shape=input_shape, output_shape=self.output_shape, use_gan=use_gan)
+                self.g_model, self.d_model, self.gan = self.model.build(pretrained_g_model=pretrained_g_model)
             else:
                 print(f'pretrained_model_path not found : {self.pretrained_model_path}')
                 exit(0)
