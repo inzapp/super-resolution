@@ -47,8 +47,8 @@ class DataGenerator:
     def load(self, use_gan):
         if use_gan:
             from super_resolution import SuperResolution
-            z = np.asarray(self.load_images(count=self.batch_size, shape=self.input_shape, interpolation='area', normalize=True)).astype(self.dtype)
-            real_dx = np.asarray(self.load_images(count=self.half_batch_size, shape=self.output_shape, interpolation='auto', normalize=True)).astype(self.dtype)
+            z = self.preprocess_images(self.load_images(count=self.batch_size, shape=self.input_shape, interpolation='area'))
+            real_dx = self.preprocess_images(self.load_images(count=self.half_batch_size, shape=self.output_shape, interpolation='auto'))
             real_dy = np.ones((self.half_batch_size, 1), dtype=self.dtype)
             fake_dx = np.asarray(SuperResolution.graph_forward(model=self.generator, x=z[:self.half_batch_size])).astype(self.dtype)
             fake_dy = np.zeros((self.half_batch_size, 1), dtype=self.dtype)
@@ -58,28 +58,9 @@ class DataGenerator:
             gy = np.append(real_dy, real_dy, axis=0)
             return dx, dy, gx, gy
         else:
-            gy = np.asarray(self.load_images(count=self.batch_size, shape=self.output_shape, interpolation='auto', normalize=True)).astype(self.dtype)
-            gx = np.asarray([self.resize(img, (self.input_shape[1], self.input_shape[0]), 'area') for img in gy]).astype(self.dtype)
+            gy = self.preprocess_images(self.load_images(count=self.batch_size, shape=self.output_shape, interpolation='auto'))
+            gx = self.resize_images(images=gy, size=(self.input_shape[1], self.input_shape[0]), interpolation='area')
             return None, None, gx, gy
-
-    def normalize(self, x):
-        return np.asarray(x).astype('float32') / 255.0
-
-    def denormalize(self, x):
-        return (np.clip(np.asarray(x) * 255.0, 0, 255)).astype('uint8')
-
-    def load_images(self, count, shape, interpolation, normalize=True):
-        assert interpolation in ['area', 'auto', 'random']
-        fs = []
-        for _ in range(count):
-            fs.append(self.pool.submit(self.load_image, self.next_image_path(), self.input_shape[-1]))
-        images = []
-        for f in fs:
-            img = f.result()
-            img = self.resize(img, (shape[1], shape[0]), interpolation)
-            x = self.normalize(np.asarray(img).reshape(shape)) if normalize else img
-            images.append(x)
-        return images
 
     def next_image_path(self):
         path = self.image_paths[self.img_index]
@@ -89,10 +70,31 @@ class DataGenerator:
             np.random.shuffle(self.image_paths)
         return path
 
+    def load_image(self, image_path, channels):
+        img = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_GRAYSCALE if channels == 1 else cv2.IMREAD_COLOR)
+        if img is None:
+            print(f'img is None, path : {image_path}')
+            return img
+        if channels == 1:
+            img = img.reshape(img.shape + (1,))
+        img = np.asarray(img).astype('uint8')
+        return img
+
+    def load_images(self, count, shape, interpolation='auto'):
+        fs = []
+        for _ in range(count):
+            fs.append(self.pool.submit(self.load_image, self.next_image_path(), shape[-1]))
+        images = []
+        for f in fs:
+            img = f.result()
+            img = self.resize(img, (shape[1], shape[0]), interpolation)
+            images.append(img)
+        return images
+
     def resize(self, img, size, interpolation):
         assert interpolation in ['nearest', 'area', 'bicubic', 'auto', 'random']
         interpolation_cv = None
-        img_height, img_width = img.shape[:2]
+        img_h, img_w = img.shape[:2]
         if interpolation == 'nearest':
             interpolation_cv = cv2.INTER_NEAREST
         elif interpolation == 'area':
@@ -100,9 +102,9 @@ class DataGenerator:
         elif interpolation == 'bicubic':
             interpolation_cv = cv2.INTER_CUBIC
         elif interpolation == 'auto':
-            if size[0] == img_width and size[1] == img_height:
+            if size[0] == img_w and size[1] == img_h:
                 interpolation_cv = cv2.INTER_LINEAR
-            elif size[0] > img_width or size[1] > img_height:
+            elif size[0] > img_w or size[1] > img_h:
                 interpolation_cv = cv2.INTER_CUBIC
             else:
                 interpolation_cv = cv2.INTER_AREA
@@ -110,6 +112,33 @@ class DataGenerator:
             interpolation = np.random.choice([cv2.INTER_LINEAR, cv2.INTER_AREA, cv2.INTER_NEAREST, cv2.INTER_CUBIC])
         return cv2.resize(img, size, interpolation=interpolation_cv)
 
-    def load_image(self, image_path, channels):
-        return cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_GRAYSCALE if channels == 1 else cv2.IMREAD_COLOR)
+    def resize_images(self, images, size, interpolation='auto'):
+        ret = []
+        for image in images:
+            ret.append(self.resize(image, size, interpolation))
+        return np.asarray(ret)
+
+    def preprocess(self, img):
+        if img.shape[-1] == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
+        x = np.asarray(img).astype(self.dtype) / 255.0
+        return x
+
+    def preprocess_images(self, images):
+        ret = []
+        for image in images:
+            ret.append(self.preprocess(image))
+        return np.asarray(ret)
+
+    def postprocess(self, output):
+        img = np.clip(np.asarray(output) * 255.0, 0.0, 255.0).astype('uint8')
+        if img.shape[-1] == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)  # rb swap
+        return img
+
+    def postprocess_images(self, outputs):
+        ret = []
+        for output in outputs:
+            ret.append(self.postprocess(output))
+        return np.asarray(ret)
 

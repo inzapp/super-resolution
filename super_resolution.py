@@ -102,13 +102,12 @@ class SuperResolution(CheckpointManager):
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return loss
 
-    def build_loss_str(self, iteration_count, d_loss, g_loss, gan_flag):
+    def build_loss_str(self, iteration_count, g_loss, d_loss, a_loss):
         loss_str = f'\r[iteration_count : {iteration_count:6d}]'
-        if gan_flag:
-            loss_str += f' d_loss: {d_loss:>8.4f}'
-            loss_str += f', g_loss: {g_loss:>8.4f}'
+        if self.use_gan:
+            loss_str += f' g_loss: {g_loss:>8.4f}, d_loss: {d_loss:>8.4f}, a_loss: {a_loss:>8.4f}'
         else:
-            loss_str += f' loss: {g_loss:.4f}'
+            loss_str += f' loss: {g_loss:>8.4f}'
         return loss_str
 
     def train(self):
@@ -130,6 +129,7 @@ class SuperResolution(CheckpointManager):
         m_lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=self.warm_up, policy='step')
         iteration_count = 0
         self.init_checkpoint_dir()
+        g_loss, d_loss, a_loss = 0.0, 0.0, 0.0
         while True:
             dx, dy, gx, gy = self.train_data_generator.load(gan_flag)
             if gan_flag:
@@ -138,13 +138,12 @@ class SuperResolution(CheckpointManager):
                 self.d_model.trainable = True
                 d_loss = compute_gradient_d(self.d_model, d_optimizer, dx, dy, self.d_loss_ignore_threshold)
                 self.d_model.trainable = False
-                g_loss = compute_gradient_g(self.gan, g_optimizer, gx, gy)
+                a_loss = compute_gradient_g(self.gan, g_optimizer, gx, gy)
             else:
                 m_lr_scheduler.update(m_optimizer, iteration_count)
-                d_loss = 0.0
                 g_loss = compute_gradient_m(self.g_model, m_optimizer, gx, gy)
             iteration_count += 1
-            print(self.build_loss_str(iteration_count, d_loss, g_loss, gan_flag), end='')
+            print(self.build_loss_str(iteration_count, g_loss, d_loss, a_loss), end='')
             if self.use_gan:
                 gan_flag = not gan_flag
             if self.training_view:
@@ -166,13 +165,13 @@ class SuperResolution(CheckpointManager):
 
     def sample_images(self, size):
         data_generator = self.validation_data_generator
-        raw_images = np.asarray(data_generator.load_images(count=size, shape=self.output_shape, interpolation='auto', normalize=False)).astype('uint8')
-        input_images_reduced = np.asarray([data_generator.resize(img, (self.input_shape[1], self.input_shape[0]), 'area') for img in raw_images]).astype('uint8')
-        input_images_nearest = np.asarray([data_generator.resize(img, (self.output_shape[1], self.output_shape[0]), 'nearest') for img in input_images_reduced]).astype('uint8')
-        input_images_bicubic = np.asarray([data_generator.resize(img, (self.output_shape[1], self.output_shape[0]), 'bicubic') for img in input_images_reduced]).astype('uint8')
-        z = data_generator.normalize(input_images_reduced)
+        raw_images = data_generator.load_images(count=size, shape=self.output_shape, interpolation='auto')
+        input_images_reduced = data_generator.resize_images(raw_images, (self.input_shape[1], self.input_shape[0]), interpolation='area')
+        input_images_nearest = data_generator.resize_images(input_images_reduced, (self.output_shape[1], self.output_shape[0]), interpolation='nearest')
+        input_images_bicubic = data_generator.resize_images(input_images_reduced, (self.output_shape[1], self.output_shape[0]), interpolation='bicubic')
+        z = data_generator.preprocess_images(input_images_reduced)
         y = np.asarray(self.graph_forward(self.g_model, z))
-        sr_images = data_generator.denormalize(y).reshape((size,) + self.output_shape)
+        sr_images = data_generator.postprocess_images(y).reshape((size,) + self.output_shape)
         
         target_shape = (size,) + self.output_shape[:2]
         if self.input_shape[-1] == 3:
