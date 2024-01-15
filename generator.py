@@ -70,14 +70,17 @@ class DataGenerator:
             np.random.shuffle(self.image_paths)
         return path
 
+    def reshape_channel_last(self, img):
+        if len(img.shape) == 2:
+            img = np.asarray(img).reshape(img.shape + (1,))
+        return img
+
     def load_image(self, image_path, channels):
         img = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_GRAYSCALE if channels == 1 else cv2.IMREAD_COLOR)
         if img is None:
             print(f'img is None, path : {image_path}')
             return img
-        if channels == 1 and len(img.shape) == 2:
-            img = img.reshape(img.shape + (1,))
-        img = np.asarray(img).astype('uint8')
+        img = self.reshape_channel_last(np.asarray(img).astype('uint8'))
         return img
 
     def load_images(self, count, shape, interpolation='auto'):
@@ -88,8 +91,6 @@ class DataGenerator:
         for f in fs:
             img = f.result()
             img = self.resize(img, (shape[1], shape[0]), interpolation)
-            if shape[-1] == 1 and len(img.shape) == 2:
-                img = img.reshape(img.shape + (1,))
             images.append(img)
         return images
 
@@ -112,7 +113,7 @@ class DataGenerator:
                 interpolation_cv = cv2.INTER_AREA
         else:
             interpolation = np.random.choice([cv2.INTER_LINEAR, cv2.INTER_AREA, cv2.INTER_NEAREST, cv2.INTER_CUBIC])
-        return cv2.resize(img, size, interpolation=interpolation_cv)
+        return self.reshape_channel_last(cv2.resize(img, size, interpolation=interpolation_cv))
 
     def resize_images(self, images, size, interpolation='auto'):
         ret = []
