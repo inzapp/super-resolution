@@ -24,10 +24,13 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
-from super_resolution import SuperResolution
+import argparse
+
+from super_resolution import TrainingConfig, SuperResolution
+
 
 if __name__ == '__main__':
-    SuperResolution(
+    config = TrainingConfig(
         train_image_path=r'/train_data/imagenet/train',
         validation_image_path=r'/train_data/imagenet/validation',
         model_name='model',
@@ -39,5 +42,26 @@ if __name__ == '__main__':
         view_grid_size=4,
         save_interval=10000,
         iterations=1000000,
-        training_view=False).train()
+        use_gan=False,
+        training_view=False)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, default='', help='pretrained model path')
+    parser.add_argument('--predict', action='store_true', help='predict images using given path dataset')
+    parser.add_argument('--evaluate', action='store_true', help='calculate psnr, ssim score with given dataset')
+    parser.add_argument('--path', type=str, default='', help='image or video path for prediction or evaluation')
+    parser.add_argument('--dataset', type=str, default='validation', help='dataset for evaluate, train or validation available')
+    parser.add_argument('--save-count', type=int, default=0, help='count for save images')
+    args = parser.parse_args()
+    if args.model != '':
+        config.pretrained_model_path = args.model
+    if args.evaluate or args.predict:
+        config.use_fixed_seed = True
+    super_resolution = SuperResolution(config=config)
+    if args.evaluate:
+        super_resolution.evaluate(image_path=args.path, dataset=args.dataset)
+    elif args.predict:
+        super_resolution.evaluate(image_path=args.path, dataset=args.dataset, show_image=args.save_count==0, save_count=args.save_count)
+    else:
+        SuperResolution(config=config).train()
 

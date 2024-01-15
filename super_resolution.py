@@ -41,7 +41,7 @@ from generator import DataGenerator
 from ckpt_manager import CheckpointManager
 
 
-class SuperResolution(CheckpointManager):
+class TrainingConfig:
     def __init__(self,
                  train_image_path,
                  validation_image_path,
@@ -54,18 +54,16 @@ class SuperResolution(CheckpointManager):
                  save_interval,
                  iterations,
                  view_grid_size,
+                 use_gan,
                  pretrained_model_path='',
-                 d_loss_ignore_threshold=0.01,
-                 use_gan=False,
+                 d_loss_ignore_threshold=0.0,
                  training_view=False,
                  use_fixed_seed=False):
-        assert input_shape[2] in [1, 3]
-        assert target_scale in [2, 4, 8, 16, 32]
-        if use_fixed_seed:
-            self.fix_global_seed()
-        self.pretrained_model_path = pretrained_model_path
+        self.train_image_path = train_image_path
+        self.validation_image_path = validation_image_path
+        self.model_name = model_name
         self.input_shape = input_shape
-        self.output_shape = (self.input_shape[0] * target_scale, self.input_shape[1] * target_scale, self.input_shape[2])
+        self.target_scale = target_scale
         self.lr = lr
         self.warm_up = warm_up
         self.batch_size = batch_size
@@ -73,40 +71,62 @@ class SuperResolution(CheckpointManager):
         self.iterations = iterations
         self.view_grid_size = view_grid_size
         self.use_gan = use_gan
-        self.training_view = training_view
+        self.pretrained_model_path = pretrained_model_path
         self.d_loss_ignore_threshold = d_loss_ignore_threshold
+        self.training_view = training_view
+        self.use_fixed_seed = use_fixed_seed
+
+
+class SuperResolution(CheckpointManager):
+    def __init__(self, config):
+        assert config.input_shape[2] in [1, 3]
+        assert config.target_scale in [2, 4, 8, 16, 32]
+        if config.use_fixed_seed:
+            self.fix_global_seed()
+        self.pretrained_model_path = config.pretrained_model_path
+        self.input_shape = config.input_shape
+        self.output_shape = (self.input_shape[0] * config.target_scale, self.input_shape[1] * config.target_scale, self.input_shape[2])
+        self.lr = config.lr
+        self.warm_up = config.warm_up
+        self.batch_size = config.batch_size
+        self.save_interval = config.save_interval
+        self.iterations = config.iterations
+        self.view_grid_size = config.view_grid_size
+        self.use_gan = config.use_gan
+        self.training_view = config.training_view
+        self.d_loss_ignore_threshold = config.d_loss_ignore_threshold
         self.live_view_previous_time = time()
-        self.set_model_name(model_name)
+        self.set_model_name(config.model_name)
 
         self.g_model, self.d_model, self.gan = None, None, None
         if self.pretrained_model_path == '':
-            self.model = Model(input_shape=input_shape, output_shape=self.output_shape, use_gan=use_gan)
+            self.model = Model(input_shape=self.input_shape, output_shape=self.output_shape, use_gan=self.use_gan)
             self.g_model, self.d_model, self.gan = self.model.build()
         else:
             if os.path.exists(self.pretrained_model_path) and os.path.isfile(self.pretrained_model_path):
                 pretrained_g_model = tf.keras.models.load_model(self.pretrained_model_path, compile=False)
                 self.input_shape = pretrained_g_model.input_shape[1:]
                 self.output_shape = pretrained_g_model.output_shape[1:]
-                self.model = Model(input_shape=input_shape, output_shape=self.output_shape, use_gan=use_gan)
+                self.model = Model(input_shape=self.input_shape, output_shape=self.output_shape, use_gan=self.use_gan)
                 self.g_model, self.d_model, self.gan = self.model.build(pretrained_g_model=pretrained_g_model)
             else:
                 print(f'pretrained_model_path not found : {self.pretrained_model_path}')
                 exit(0)
 
-        self.train_image_paths = self.init_image_paths(train_image_path)
-        self.validation_image_paths = self.init_image_paths(validation_image_path)
+        self.train_image_paths = self.init_image_paths(config.train_image_path)
+        self.validation_image_paths = self.init_image_paths(config.validation_image_path)
         self.train_data_generator = DataGenerator(
             generator=self.g_model,
             image_paths=self.train_image_paths,
-            input_shape=input_shape,
+            input_shape=self.input_shape,
             output_shape=self.output_shape,
-            batch_size=batch_size)
+            batch_size=self.batch_size)
         self.validation_data_generator = DataGenerator(
             generator=None,
             image_paths=self.validation_image_paths,
-            input_shape=input_shape,
+            input_shape=self.input_shape,
             output_shape=self.output_shape,
-            batch_size=batch_size)
+            batch_size=self.batch_size)
 
     def init_image_paths(self, image_path):
         return glob(f'{image_path}/**/*.jpg', recursive=True)
